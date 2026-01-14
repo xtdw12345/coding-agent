@@ -621,29 +621,193 @@ void shouldValidateAge(int age, boolean expected) {
 
 ---
 
-### 6. 质量自检清单
+### 6. 测试有效性约束（严格执行）
 
-生成测试后，对照检查：
+#### 6.1 测试方法必要结构
 
-#### 覆盖度
+每个测试方法**必须同时包含**以下元素，缺一不可：
+
+```java
+@Test
+@DisplayName("...")
+void shouldXxx_whenYyy() {
+    // ✅ 必须：准备测试数据
+    var input = ...;
+
+    // ✅ 必须：调用被测方法（Act）
+    var result = targetService.methodUnderTest(input);  // 必须实际调用！
+
+    // ✅ 必须：至少一个有意义的断言
+    assertThat(result).isEqualTo(expected);  // 必须验证结果！
+
+    // ✅ 必须（如有 Mock）：验证关键交互
+    verify(mockDependency).expectedMethod(input);  // 必须验证调用！
+}
+```
+
+#### 6.2 禁止的反模式（绝对禁止）
+
+以下写法**严格禁止**，一旦发现必须立即修正：
+
+##### ❌ 空测试方法
+
+```java
+// 禁止：没有任何断言或验证
+@Test
+void shouldDoSomething() {
+    // 空方法体或只有注释
+}
+```
+
+##### ❌ 不调用被测方法
+
+```java
+// 禁止：没有调用被测对象的方法
+@Test
+void shouldSaveUser() {
+    var user = new User("test");
+    // 缺少: userService.save(user);
+    assertThat(user).isNotNull();  // 这不是测试！
+}
+```
+
+##### ❌ 无意义的断言
+
+```java
+// 禁止：断言不验证被测方法的行为
+@Test
+void shouldReturnUser() {
+    var result = userService.getUser(1L);
+    assertThat(result).isNotNull();  // 太弱！必须验证具体内容
+    assertThat(true).isTrue();       // 禁止：恒真断言
+    assertThat(1).isEqualTo(1);      // 禁止：与被测代码无关
+}
+```
+
+##### ❌ 必然通过的 verify
+
+```java
+// 禁止：这些 verify 永远通过，毫无意义
+verify(mock, atLeast(0)).anyMethod();     // 禁止：0次也通过
+verify(mock, atMost(999)).anyMethod();    // 禁止：形同虚设
+verifyNoMoreInteractions();               // 禁止：单独使用无意义
+```
+
+##### ❌ 只 Mock 不验证
+
+```java
+// 禁止：设置了 Mock 但不验证是否被调用
+@Test
+void shouldNotifyUser() {
+    when(notificationService.send(any())).thenReturn(true);
+    userService.register(user);
+    // 缺少: verify(notificationService).send(any());
+}
+```
+
+##### ❌ 捕获异常后不验证
+
+```java
+// 禁止：吞掉异常
+@Test
+void shouldThrowException() {
+    try {
+        userService.getUser(null);
+    } catch (Exception e) {
+        // 禁止：捕获后什么都不做
+    }
+}
+```
+
+##### ❌ 断言输入而非输出
+
+```java
+// 禁止：断言的是输入数据，不是方法返回
+@Test
+void shouldProcessOrder() {
+    var order = new Order(100);
+    orderService.process(order);
+    assertThat(order.getAmount()).isEqualTo(100);  // 禁止：验证的是输入！
+}
+```
+
+#### 6.3 正确写法对照表
+
+| 场景 | ❌ 错误写法 | ✅ 正确写法 |
+|------|------------|------------|
+| 返回值测试 | `assertThat(result).isNotNull()` | `assertThat(result.getName()).isEqualTo("张三")` |
+| void 方法 | 无 verify | `verify(repository).save(argThat(u -> u.getName().equals("张三")))` |
+| 异常测试 | try-catch 吞异常 | `assertThatThrownBy(() -> ...).isInstanceOf(XxxException.class)` |
+| Mock 验证 | `verify(mock, atLeast(0))` | `verify(mock, times(1))` 或 `verify(mock)` |
+| 状态变更 | 只验证返回值 | 同时验证 `verify` 和 `ArgumentCaptor` |
+
+#### 6.4 每个测试必须回答的问题
+
+编写测试时，确保能明确回答以下问题：
+
+1. **调用了什么？** - 被测方法是否被实际调用
+2. **传入了什么？** - 输入参数是否正确传递给依赖
+3. **返回了什么？** - 返回值是否符合预期
+4. **发生了什么？** - 副作用（数据库保存、消息发送）是否发生
+
+```java
+// 完整示例：回答所有问题
+@Test
+@DisplayName("当用户有效时，应保存用户并发送欢迎邮件")
+void shouldSaveUserAndSendEmail_whenUserIsValid() {
+    // Arrange
+    var user = new User("张三", "zhangsan@example.com");
+    when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+    // Act - 回答"调用了什么"
+    var result = userService.register(user);
+
+    // Assert - 回答"返回了什么"
+    assertThat(result.getId()).isNotNull();
+    assertThat(result.getName()).isEqualTo("张三");
+
+    // Verify - 回答"传入了什么"和"发生了什么"
+    ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository).save(userCaptor.capture());
+    assertThat(userCaptor.getValue().getName()).isEqualTo("张三");
+
+    verify(emailService).sendWelcomeEmail("zhangsan@example.com");
+}
+```
+
+---
+
+### 7. 质量自检清单
+
+生成测试后，**必须**对照以下清单逐项检查：
+
+#### 有效性检查（最重要）
+- [ ] 每个测试都调用了被测方法
+- [ ] 每个测试都有验证返回值或行为的断言
+- [ ] 没有空测试方法
+- [ ] 没有恒真断言（如 `assertThat(true).isTrue()`）
+- [ ] 没有 `verify(mock, atLeast(0))` 等无意义验证
+- [ ] Mock 设置后都有对应的 verify
+
+#### 覆盖度检查
 - [ ] 所有 public 方法都有测试
 - [ ] 所有分支都被覆盖
 - [ ] null/空值/边界值已测试
 - [ ] 异常路径已测试
 
-#### 代码质量
+#### 代码质量检查
 - [ ] 命名符合 `should_when` 规范
 - [ ] 所有方法都有 `@DisplayName`
 - [ ] 遵循 AAA 模式
 - [ ] 静态方法 Mock 使用 try-with-resources
 
-#### 独立性
+#### 独立性检查
 - [ ] 测试之间无顺序依赖
 - [ ] 没有共享可变状态
 
 ---
 
-## 附录：AssertJ 常用断言速查
+## 附录 A：AssertJ 常用断言速查
 
 ```java
 // 基本
