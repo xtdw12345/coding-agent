@@ -556,53 +556,117 @@ should{预期行为}_when{条件或状态}
 
 #### 2.3 @DisplayName
 
-必须使用中文描述：
+使用英文描述，清晰说明测试意图：
 
 ```java
-@DisplayName("当用户名为空时，应抛出 IllegalArgumentException")
+@DisplayName("Should throw IllegalArgumentException when username is null")
 ```
 
 ---
 
-### 3. 代码结构规范
+### 3. 语言规范
 
-#### 3.1 测试类结构
+#### 3.1 代码注释必须使用英文
+
+所有代码中的注释**必须使用英文**，包括但不限于：
+
+```java
+// ✅ 正确：英文注释
+// Arrange - prepare test data
+var user = new User("test");
+
+// ❌ 错误：中文注释
+// 准备测试数据
+var user = new User("test");
+```
+
+#### 3.2 AAA 模式注释标准格式
+
+```java
+@Test
+void shouldSaveUser_whenUserIsValid() {
+    // Arrange
+    var user = new User("John", 25);
+    when(repository.save(any())).thenReturn(user);
+
+    // Act
+    var result = userService.register(user);
+
+    // Assert
+    assertThat(result).isNotNull();
+    verify(repository).save(user);
+}
+```
+
+#### 3.3 复杂逻辑说明使用英文
+
+```java
+// ✅ 正确
+// Mock the static method to return a fixed timestamp
+// This ensures the test is deterministic
+try (MockedStatic<Instant> mocked = mockStatic(Instant.class)) {
+    mocked.when(Instant::now).thenReturn(fixedInstant);
+    ...
+}
+
+// ❌ 错误
+// Mock 静态方法返回固定时间戳
+// 这样可以确保测试是确定性的
+```
+
+#### 3.4 语言使用总结
+
+| 位置 | 语言要求 |
+|------|----------|
+| 代码注释 | **英文** |
+| 变量名/方法名 | **英文** |
+| @DisplayName | **英文** |
+| 字符串字面量（测试数据） | **英文** |
+| 设计文档 (design.md) | 中文 |
+| 计划文档 (plan.md) | 中文 |
+| 与用户的交互输出 | 中文 |
+
+---
+
+### 4. 代码结构规范
+
+#### 4.1 测试类结构
 
 ```java
 @ExtendWith(MockitoExtension.class)
 class XxxServiceTest {
 
-    // 1. Mock 依赖
+    // Mock dependencies
     @Mock
     private UserRepository userRepository;
 
-    // 2. 被测对象
+    // System under test
     @InjectMocks
     private XxxService xxxService;
 
-    // 3. 使用 @Nested 分组
+    // Group tests by method using @Nested
     @Nested
-    @DisplayName("register 方法测试")
+    @DisplayName("Tests for register method")
     class RegisterTests {
-        // 测试方法
+        // test methods
     }
 }
 ```
 
-#### 3.2 测试方法结构（AAA 模式）
+#### 4.2 测试方法结构（AAA 模式）
 
 ```java
 @Test
-@DisplayName("当用户有效时，应保存用户")
+@DisplayName("Should save user when user is valid")
 void shouldSaveUser_whenUserIsValid() {
-    // Arrange - 准备
-    var user = new User("张三", 25);
+    // Arrange
+    var user = new User("John", 25);
     when(userRepository.save(any())).thenReturn(user);
 
-    // Act - 执行
+    // Act
     var result = userService.register(user);
 
-    // Assert - 断言
+    // Assert
     assertThat(result).isNotNull();
     verify(userRepository).save(user);
 }
@@ -610,16 +674,16 @@ void shouldSaveUser_whenUserIsValid() {
 
 ---
 
-### 4. Mock 使用规范
+### 5. Mock 使用规范
 
-#### 4.1 @Mock vs @Spy
+#### 5.1 @Mock vs @Spy
 
 | 注解 | 使用场景 |
 |------|----------|
 | `@Mock` | 完全模拟，需定义返回值 |
 | `@Spy` | 部分模拟，默认调用真实方法 |
 
-#### 4.2 静态方法 Mock
+#### 5.2 静态方法 Mock
 
 必须使用 try-with-resources：
 
@@ -630,14 +694,14 @@ try (MockedStatic<UserParams> mocked = mockStatic(UserParams.class)) {
 }
 ```
 
-#### 4.3 void 方法 Mock
+#### 5.3 void 方法 Mock
 
 ```java
 doNothing().when(mockService).sendEmail(any());
 doThrow(new RuntimeException()).when(mockService).sendEmail(any());
 ```
 
-#### 4.4 ArgumentCaptor
+#### 5.4 ArgumentCaptor
 
 ```java
 ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
@@ -647,7 +711,7 @@ assertThat(captor.getValue().getName()).isEqualTo("张三");
 
 ---
 
-### 5. 参数化测试
+### 6. 参数化测试
 
 ```java
 @ParameterizedTest
@@ -657,7 +721,7 @@ assertThat(captor.getValue().getName()).isEqualTo("张三");
     "150, true",
     "151, false"
 })
-@DisplayName("年龄有效性校验")
+@DisplayName("Should validate age correctly")
 void shouldValidateAge(int age, boolean expected) {
     assertThat(validator.isValidAge(age)).isEqualTo(expected);
 }
@@ -665,9 +729,9 @@ void shouldValidateAge(int age, boolean expected) {
 
 ---
 
-### 6. 测试有效性约束（严格执行）
+### 7. 测试有效性约束（严格执行）
 
-#### 6.1 测试方法必要结构
+#### 7.1 测试方法必要结构
 
 每个测试方法**必须同时包含**以下元素，缺一不可：
 
@@ -689,7 +753,7 @@ void shouldXxx_whenYyy() {
 }
 ```
 
-#### 6.2 禁止的反模式（绝对禁止）
+#### 7.2 禁止的反模式（绝对禁止）
 
 以下写法**严格禁止**，一旦发现必须立即修正：
 
@@ -775,17 +839,17 @@ void shouldProcessOrder() {
 }
 ```
 
-#### 6.3 正确写法对照表
+#### 7.3 正确写法对照表
 
 | 场景 | ❌ 错误写法 | ✅ 正确写法 |
 |------|------------|------------|
-| 返回值测试 | `assertThat(result).isNotNull()` | `assertThat(result.getName()).isEqualTo("张三")` |
-| void 方法 | 无 verify | `verify(repository).save(argThat(u -> u.getName().equals("张三")))` |
+| 返回值测试 | `assertThat(result).isNotNull()` | `assertThat(result.getName()).isEqualTo("John")` |
+| void 方法 | 无 verify | `verify(repository).save(argThat(u -> u.getName().equals("John")))` |
 | 异常测试 | try-catch 吞异常 | `assertThatThrownBy(() -> ...).isInstanceOf(XxxException.class)` |
 | Mock 验证 | `verify(mock, atLeast(0))` | `verify(mock, times(1))` 或 `verify(mock)` |
 | 状态变更 | 只验证返回值 | 同时验证 `verify` 和 `ArgumentCaptor` |
 
-#### 6.4 每个测试必须回答的问题
+#### 7.4 每个测试必须回答的问题
 
 编写测试时，确保能明确回答以下问题：
 
@@ -795,33 +859,33 @@ void shouldProcessOrder() {
 4. **发生了什么？** - 副作用（数据库保存、消息发送）是否发生
 
 ```java
-// 完整示例：回答所有问题
+// Complete example: answering all questions
 @Test
-@DisplayName("当用户有效时，应保存用户并发送欢迎邮件")
+@DisplayName("Should save user and send welcome email when user is valid")
 void shouldSaveUserAndSendEmail_whenUserIsValid() {
     // Arrange
-    var user = new User("张三", "zhangsan@example.com");
+    var user = new User("John", "john@example.com");
     when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-    // Act - 回答"调用了什么"
+    // Act - answers "what was called"
     var result = userService.register(user);
 
-    // Assert - 回答"返回了什么"
+    // Assert - answers "what was returned"
     assertThat(result.getId()).isNotNull();
-    assertThat(result.getName()).isEqualTo("张三");
+    assertThat(result.getName()).isEqualTo("John");
 
-    // Verify - 回答"传入了什么"和"发生了什么"
+    // Verify - answers "what was passed" and "what happened"
     ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
     verify(userRepository).save(userCaptor.capture());
-    assertThat(userCaptor.getValue().getName()).isEqualTo("张三");
+    assertThat(userCaptor.getValue().getName()).isEqualTo("John");
 
-    verify(emailService).sendWelcomeEmail("zhangsan@example.com");
+    verify(emailService).sendWelcomeEmail("john@example.com");
 }
 ```
 
 ---
 
-### 7. 质量自检清单
+### 8. 质量自检清单
 
 生成测试后，**必须**对照以下清单逐项检查：
 
@@ -854,26 +918,26 @@ void shouldSaveUserAndSendEmail_whenUserIsValid() {
 ## 附录 A：AssertJ 常用断言速查
 
 ```java
-// 基本
+// Basic
 assertThat(result).isEqualTo(expected);
 assertThat(result).isNotNull();
 
-// 字符串
-assertThat(str).contains("关键词");
-assertThat(str).startsWith("前缀");
+// String
+assertThat(str).contains("keyword");
+assertThat(str).startsWith("prefix");
 
-// 数字
+// Number
 assertThat(num).isGreaterThan(0);
 assertThat(num).isBetween(1, 100);
 
-// 集合
+// Collection
 assertThat(list).hasSize(3);
-assertThat(list).extracting(User::getName).containsExactly("张三", "李四");
+assertThat(list).extracting(User::getName).containsExactly("John", "Jane");
 
-// 异常
+// Exception
 assertThatThrownBy(() -> method())
     .isInstanceOf(SomeException.class)
-    .hasMessage("错误信息");
+    .hasMessage("error message");
 
 // Optional
 assertThat(optional).isPresent();
