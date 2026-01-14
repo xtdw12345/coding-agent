@@ -16,9 +16,9 @@
 
 | 类别 | 技术选型 | 版本要求 |
 |------|----------|----------|
-| 语言 | Java | 17+ |
+| 语言 | Java | 8+（推荐 17+） |
 | 测试框架 | JUnit 5 (Jupiter) | 5.x |
-| Mock 框架 | Mockito | 5+ |
+| Mock 框架 | Mockito | 4+（Java 8）或 5+（Java 11+） |
 | 断言库 | AssertJ | 3.x |
 
 ### 1.2 禁止使用
@@ -31,6 +31,18 @@
 
 - 已启用 `mockito-inline`，支持 Mock Final 类和静态方法
 - 使用 `@ExtendWith(MockitoExtension.class)` 初始化 Mock
+
+### 1.4 版本适配
+
+根据用户项目的 Java 版本自动调整代码风格：
+
+| Java 版本 | 代码风格 |
+|-----------|----------|
+| 8 | 使用显式类型声明，Lambda 表达式 |
+| 11+ | 可使用 `var` 局部变量推断 |
+| 17+ | 可使用 Record、Text Blocks、Pattern Matching |
+
+在分析用户代码时，通过 `pom.xml`、`build.gradle` 或代码风格识别项目的 Java 版本，生成的测试代码应与项目版本兼容。
 
 ---
 
