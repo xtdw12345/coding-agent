@@ -425,20 +425,133 @@
     3. SMELL-02: 移动方法（此时引用关系更清晰）
     ...
 
-    ## 4. API 影响评估
+    ## 4. 详细代码变更设计 (核心 - 必须填写)
+
+    > ⚠️ **重要**：此章节是重构设计的核心。
+    > 必须在此详细描述每个重构步骤的代码变更，包括重构前后的代码对比。
+    > 阶段 4 执行重构时，**必须严格按照此设计执行**，不得随意偏离。
+
+    ### STEP-01: [重构手法名称] - [目标描述]
+
+    **目标**: [简述这一步要达成什么]
+
+    **涉及文件**:
+    - `src/main/java/com/example/OrderService.java`
+
+    **重构前代码** (位置: OrderService.java:45-80):
+    ```java
+    public void processOrder(Order order) {
+        // 验证逻辑 (将被提取)
+        if (order.getItems().isEmpty()) {
+            throw new InvalidOrderException("Empty cart");
+        }
+        if (order.getCustomer() == null) {
+            throw new InvalidOrderException("No customer");
+        }
+        // ... 更多验证逻辑
+
+        // 计算逻辑
+        BigDecimal total = calculateTotal(order);
+        // ...
+    }
+    ```
+
+    **重构后代码**:
+    ```java
+    public void processOrder(Order order) {
+        validateOrder(order);  // [REFACTOR-{RefactorID}] STEP-01: 提取验证逻辑
+        BigDecimal total = calculateTotal(order);
+        // ...
+    }
+
+    /**
+     * 验证订单有效性
+     * [REFACTOR-{RefactorID}] STEP-01: 从 processOrder 提取
+     */
+    private void validateOrder(Order order) {
+        if (order.getItems().isEmpty()) {
+            throw new InvalidOrderException("Empty cart");
+        }
+        if (order.getCustomer() == null) {
+            throw new InvalidOrderException("No customer");
+        }
+        // ... 更多验证逻辑
+    }
+    ```
+
+    **关键约束**:
+    - 新方法 `validateOrder` 必须是 private
+    - 异常类型和消息必须保持不变
+    - 验证顺序必须保持不变
+
+    ---
+
+    ### STEP-02: [重构手法名称] - [目标描述]
+
+    **目标**: [简述这一步要达成什么]
+
+    **涉及文件**:
+    - `src/main/java/com/example/OrderService.java`
+    - `src/main/java/com/example/Customer.java` (新增方法)
+
+    **重构前代码** (位置: OrderService.java:90-110):
+    ```java
+    // 在 OrderService 中
+    private BigDecimal calculateDiscount(Order order) {
+        Customer customer = order.getCustomer();
+        if (customer.isVip() && order.getTotal().compareTo(VIP_THRESHOLD) > 0) {
+            return order.getTotal().multiply(VIP_DISCOUNT_RATE);
+        }
+        return BigDecimal.ZERO;
+    }
+    ```
+
+    **重构后代码**:
+    ```java
+    // 在 OrderService 中
+    private BigDecimal calculateDiscount(Order order) {
+        return order.getCustomer().calculateDiscount(order.getTotal());
+        // [REFACTOR-{RefactorID}] STEP-02: 委托给 Customer
+    }
+
+    // 在 Customer 中新增
+    /**
+     * 计算客户折扣
+     * [REFACTOR-{RefactorID}] STEP-02: 从 OrderService 移动
+     */
+    public BigDecimal calculateDiscount(BigDecimal orderTotal) {
+        if (this.isVip() && orderTotal.compareTo(VIP_THRESHOLD) > 0) {
+            return orderTotal.multiply(VIP_DISCOUNT_RATE);
+        }
+        return BigDecimal.ZERO;
+    }
+    ```
+
+    **关键约束**:
+    - VIP_THRESHOLD 和 VIP_DISCOUNT_RATE 需要移动到 Customer 类或保持为共享常量
+    - 折扣计算逻辑必须完全相同
+    - Customer.calculateDiscount 必须是 public（供 OrderService 调用）
+
+    ---
+
+    ### STEP-03: [继续描述其他步骤...]
+
+    ...
+
+    ## 5. API 影响评估
     | 变更类型 | 详情 | 是否破坏性？ | 迁移方案 |
     | -------- | ---- | ------------ | -------- |
     | 方法重命名 | `calc()` → `calculateTotal()` | 是 | 废弃旧方法，新增新方法 |
     | 方法移动 | `OrderService.validate()` → `OrderValidator.validate()` | 是 | 保留门面方法 |
     | 签名变更 | 新增 `context` 参数 | 是 | 重载并提供默认值 |
 
-    ## 5. 风险评估
+    ## 6. 风险评估
     - **行为变更风险**: [分析潜在的行为变化]
     - **依赖影响**: [哪些其他模块可能受影响]
     - **性能影响**: [是否有性能方面的影响]
     - **回滚方案**: `git reset --hard HEAD~N` 或切换分支
 
-    ## 6. 业务规则验证矩阵 (关键)
+    ## 7. 业务规则验证矩阵 (关键)
 
     > ⚠️ 每个重构步骤必须标注可能影响的业务规则，并确保有测试覆盖。
 
@@ -452,7 +565,7 @@
     - BR-02: 需要在阶段 3 补充测试，否则不能执行 STEP-02
     - BR-03, BR-04: 需要在阶段 3 补充测试，否则不能执行 STEP-03
 
-    ## 7. 拟引入的设计模式 (如适用)
+    ## 8. 拟引入的设计模式 (如适用)
     - 模式: [例如 Strategy、Template Method、Factory]
     - 理由: [为什么这个模式适合]
     - 结构: [类图或描述]
@@ -601,6 +714,44 @@
 
 **仅在用户批准阶段 3 后方可进入此阶段。**
 
+#### 4.0 强制引用设计文档协议 (关键)
+
+```
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ⚠️ 强制引用协议 - 防止设计偏离                                        ┃
+┃                                                                       ┃
+┃  在执行每个重构步骤之前，必须：                                        ┃
+┃                                                                       ┃
+┃  1. 重新读取 strategy.md 中对应步骤的"详细代码变更设计"               ┃
+┃  2. 确认即将编写的代码与设计文档中的"重构后代码"一致                  ┃
+┃  3. 遵守设计文档中列出的"关键约束"                                    ┃
+┃                                                                       ┃
+┃  ❌ 禁止的行为：                                                       ┃
+┃  • 不看 strategy.md 直接开始写代码                                    ┃
+┃  • 写出与 strategy.md 设计不一致的代码                                ┃
+┃  • 自行"优化"或"改进"设计（需要先回到阶段 2 修改策略）               ┃
+┃  • 因为 context 太长而"忘记"之前的设计                                ┃
+┃                                                                       ┃
+┃  ✅ 正确的执行方式：                                                   ┃
+┃  1. 读取 strategy.md 中 STEP-XX 的设计                                ┃
+┃  2. 按照"重构后代码"的设计编写代码                                    ┃
+┃  3. 检查是否满足"关键约束"                                            ┃
+┃  4. 运行测试验证                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+**为什么需要这个协议？**
+
+随着对话 context 的增长，LLM 可能会：
+- 忘记之前设计的具体细节
+- 用不同的方式实现同样的功能
+- 跳过设计中的某些约束
+
+通过强制在每个步骤前重新读取设计文档，可以确保：
+- 实现与设计保持一致
+- 用户批准的方案被准确执行
+- 不会因为 context 限制而产生偏差
+
 #### 4.1 黄金法则：小步、验证
 
 **绝不在没有中间验证的情况下进行大规模修改。**
@@ -618,12 +769,17 @@
 
 #### 4.2 执行循环
 
-1.  **读取指令**: 从 `./refactor/{RefactorID}/plan.md` 加载下一个未完成的步骤。
-2.  **检查业务规则覆盖**: 确认该步骤涉及的业务规则（见 strategy.md 中的验证矩阵）都有测试覆盖。
-3.  **应用单一手法**: 执行一个原子级重构操作。
-4.  **保持行为**: 确保重构是纯结构性的，不是行为性的。
-5.  **运行业务规则测试**: 特别运行与该步骤相关的业务规则测试。
-6.  **标记进度**: 将 `plan.md` 中的 checkbox 更新为 `[x]`。
+1.  **读取设计文档 (必须)**:
+    - 打开 `./refactor/{RefactorID}/strategy.md`
+    - 找到当前步骤 (STEP-XX) 的"详细代码变更设计"章节
+    - 阅读"重构前代码"、"重构后代码"和"关键约束"
+2.  **读取执行计划**: 从 `./refactor/{RefactorID}/plan.md` 加载下一个未完成的步骤。
+3.  **检查业务规则覆盖**: 确认该步骤涉及的业务规则（见 strategy.md 中的验证矩阵）都有测试覆盖。
+4.  **按设计执行重构**: 严格按照 strategy.md 中的"重构后代码"实现，不得自行变更设计。
+5.  **验证关键约束**: 检查代码是否满足 strategy.md 中列出的所有"关键约束"。
+6.  **保持行为**: 确保重构是纯结构性的，不是行为性的。
+7.  **运行业务规则测试**: 特别运行与该步骤相关的业务规则测试。
+8.  **标记进度**: 将 `plan.md` 中的 checkbox 更新为 `[x]`。
 
 > ⚠️ **关键检查点**
 >
@@ -1096,6 +1252,9 @@ public record CustomerDTO(String id, String name, String email) {}
 - ❌ 忽略测试失败
 - ❌ 无增量验证的大规模变更
 - ❌ 不理解业务逻辑就开始重构
+- ❌ 不读 strategy.md 直接写代码（阶段 4 必须先读设计文档）
+- ❌ 写出与 strategy.md 设计不一致的代码
+- ❌ 自行"优化"设计而不回到阶段 2 修改策略
 
 ### 重构锚点注释格式
 
