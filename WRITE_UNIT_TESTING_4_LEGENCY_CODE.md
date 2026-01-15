@@ -53,6 +53,17 @@
 - 被测类没有 public 方法
 - 项目缺少必要的测试依赖
 
+### 禁止浅层测试设计
+
+```
+❌ 禁止：仅根据方法签名设计测试（如只测 null 参数）
+❌ 禁止：不阅读方法实现就开始设计测试用例
+❌ 禁止：忽略代码中的业务分支和条件逻辑
+❌ 禁止：只测试"正常路径"而忽略业务异常路径
+```
+
+**强制要求**：在阶段 2 必须阅读被测方法的完整实现，提取所有业务规则（BR-xx），并在阶段 3 的测试矩阵中明确标注每个测试用例对应的业务规则。
+
 ---
 
 ## 文档管理规范
@@ -156,9 +167,61 @@
 3. 识别所有 public 方法
 4. 检查是否已有测试类
 5. 评估测试复杂度
+6. **深入阅读每个方法的实现代码，理解业务逻辑**
 ```
 
-#### 2.2 输出分析结果，请求确认
+#### 2.2 业务逻辑分析（关键步骤）
+
+> ⚠️ **重要**：这是区分"有效测试"和"无效测试"的关键步骤。
+> 不要仅根据方法签名设计测试，必须阅读方法实现，理解业务规则。
+
+对每个待测方法，执行以下分析：
+
+```
+1. 阅读方法完整实现代码
+2. 识别所有业务分支（if/else、switch、三元运算符）
+3. 识别循环中的业务逻辑（for、while）
+4. 识别异常处理逻辑（try-catch、throw）
+5. 识别与外部依赖的交互点
+6. 提取隐含的业务规则（如：金额计算、状态流转、权限校验）
+7. 识别边界条件（不仅是参数边界，还有业务边界）
+```
+
+**示例：从代码中提取业务规则**
+
+假设 `register` 方法的实现如下：
+```java
+public User register(User user) {
+    if (user == null || user.getName() == null) {
+        throw new IllegalArgumentException("User or name cannot be null");
+    }
+    if (UserParams.isBlacklisted(user.getName())) {
+        return null;  // 静默返回，不保存
+    }
+    if (userRepository.existsByName(user.getName())) {
+        throw new DuplicateUserException("User already exists");
+    }
+    if (user.getAge() != null && user.getAge() < 18) {
+        user.setRequiresParentalConsent(true);  // 业务规则：未成年需要监护人同意
+    }
+    User saved = userRepository.save(user);
+    if (user.getEmail() != null) {
+        notificationService.sendWelcomeEmail(user.getEmail());  // 仅有邮箱时发送
+    }
+    return saved;
+}
+```
+
+从中提取的业务规则：
+| 规则编号 | 业务规则 | 代码位置 |
+|----------|----------|----------|
+| BR-01 | 用户名不能为空 | 第 2-4 行 |
+| BR-02 | 黑名单用户静默拒绝（不抛异常） | 第 5-7 行 |
+| BR-03 | 用户名不能重复 | 第 8-10 行 |
+| BR-04 | 未成年用户需要监护人同意 | 第 11-13 行 |
+| BR-05 | 仅当有邮箱时才发送欢迎邮件 | 第 15-17 行 |
+
+#### 2.3 输出分析结果，请求确认
 
 ```markdown
 ## 代码分析完成
@@ -186,17 +249,39 @@ UserService
 └── UserParams.isBlacklisted() (需要 mockStatic)
 ```
 
+### 核心业务规则（从代码中提取）
+
+> 以下规则从源代码中提取，是测试设计的核心依据。
+
+#### UserService.register()
+
+| 规则编号 | 业务规则 | 代码位置 | 测试优先级 |
+|----------|----------|----------|------------|
+| BR-01 | 用户名不能为空 | 第 2-4 行 | P0 |
+| BR-02 | 黑名单用户静默拒绝（不抛异常） | 第 5-7 行 | P0 |
+| BR-03 | 用户名不能重复 | 第 8-10 行 | P0 |
+| BR-04 | 未成年用户（<18岁）需标记监护人同意 | 第 11-13 行 | P1 |
+| BR-05 | 仅当有邮箱时才发送欢迎邮件 | 第 15-17 行 | P1 |
+
+#### UserService.updateUser()
+
+| 规则编号 | 业务规则 | 代码位置 | 测试优先级 |
+|----------|----------|----------|------------|
+| BR-06 | 不能修改已锁定用户 | 第 25-27 行 | P0 |
+| BR-07 | 管理员可以跳过锁定检查 | 第 28-30 行 | P1 |
+
 ### 建议
 
 - UserRepository 是接口，建议跳过，仅作为 Mock 对象
 - UserValidator 已有部分测试，建议补充缺失场景
+- **重点关注 BR-02、BR-04、BR-05 这类隐含业务规则**
 
-**请确认以上分析是否正确，以及您希望为哪些类生成测试？**
+**请确认以上分析是否正确，业务规则是否完整？**
 
 回复示例：
 - "确认，全部生成"
-- "只需要 UserService"
-- "UserService 和 UserValidator"
+- "BR-04 的年龄阈值应该是 16 岁，不是 18 岁"
+- "还有一个规则：VIP 用户注册后需要发送短信"
 ```
 
 > ⛔ **必须停止**
@@ -209,7 +294,14 @@ UserService
 
 ### 阶段 3: 测试设计阶段（生成 design.md，等待用户 Review）
 
-#### 3.1 生成测试设计文档
+#### 3.1 设计原则
+
+> ⚠️ **关键原则**：测试用例必须基于业务规则设计，而非仅基于方法签名。
+>
+> - ❌ 错误：只测试 `user = null` → 抛异常（仅测参数边界）
+> - ✅ 正确：测试 `未成年用户注册时，系统是否正确设置监护人同意标记`（测业务规则）
+
+#### 3.2 生成测试设计文档
 
 用户确认后，生成 `./specs/test/[taskId]/design.md` 文件：
 
@@ -237,38 +329,51 @@ UserService
 | NotificationService | 接口 | @Mock |
 | UserParams | 静态方法 | mockStatic |
 
-### 1.3 方法测试矩阵
+### 1.3 业务规则测试矩阵
+
+> 以下测试用例基于阶段 2 提取的业务规则设计。每个业务规则至少有一个测试用例覆盖。
 
 #### register(User user)
 
-| 场景 | 输入条件 | 预期结果 | 优先级 |
-|------|----------|----------|--------|
-| 正常注册 | 有效用户对象 | 保存成功，发送通知 | P0 |
-| 空用户名 | user.name = null | 抛出 IllegalArgumentException | P0 |
-| 空用户对象 | user = null | 抛出 IllegalArgumentException | P0 |
-| 黑名单用户 | UserParams.isBlacklisted = true | 静默返回，不保存 | P1 |
-| 重复用户名 | 用户名已存在 | 抛出 DuplicateUserException | P1 |
+| 业务规则 | 场景 | 输入条件 | 预期结果 | 验证点 | 优先级 |
+|----------|------|----------|----------|--------|--------|
+| BR-01 | 空用户对象 | user = null | 抛出 IllegalArgumentException | 异常类型和消息 | P0 |
+| BR-01 | 空用户名 | user.name = null | 抛出 IllegalArgumentException | 异常类型和消息 | P0 |
+| BR-02 | 黑名单用户 | UserParams.isBlacklisted = true | 返回 null，不调用 save | verify(repo, never()).save() | P0 |
+| BR-03 | 重复用户名 | existsByName = true | 抛出 DuplicateUserException | 异常类型 | P0 |
+| BR-04 | 未成年用户 | age = 17 | 保存成功，requiresParentalConsent = true | ArgumentCaptor 验证 | P1 |
+| BR-04 | 成年用户 | age = 18 | 保存成功，requiresParentalConsent = false/null | ArgumentCaptor 验证 | P1 |
+| BR-04 | 年龄边界 | age = null | 保存成功，不设置 requiresParentalConsent | ArgumentCaptor 验证 | P1 |
+| BR-05 | 有邮箱用户 | email = "test@example.com" | 保存成功，调用 sendWelcomeEmail | verify(notification).sendWelcomeEmail() | P1 |
+| BR-05 | 无邮箱用户 | email = null | 保存成功，不调用 sendWelcomeEmail | verify(notification, never()).sendWelcomeEmail() | P1 |
+| - | 正常注册 | 有效用户（成年、有邮箱） | 保存成功，返回用户 | 返回值和交互验证 | P0 |
 
 #### getUser(Long id)
 
-| 场景 | 输入条件 | 预期结果 | 优先级 |
-|------|----------|----------|--------|
-| 正常查询 | 存在的用户 ID | 返回用户对象 | P0 |
-| 用户不存在 | 不存在的 ID | 抛出 UserNotFoundException | P0 |
-| 空 ID | id = null | 抛出 IllegalArgumentException | P1 |
+| 业务规则 | 场景 | 输入条件 | 预期结果 | 验证点 | 优先级 |
+|----------|------|----------|----------|--------|--------|
+| - | 正常查询 | 存在的用户 ID | 返回用户对象 | 返回值字段验证 | P0 |
+| - | 用户不存在 | 不存在的 ID | 抛出 UserNotFoundException | 异常类型 | P0 |
+| - | 空 ID | id = null | 抛出 IllegalArgumentException | 异常类型 | P1 |
 
-### 1.4 边界值测试清单
+### 1.4 边界值与特殊场景
 
-- [ ] 用户名长度：0, 1, 50, 51（假设最大50）
-- [ ] 用户年龄：-1, 0, 1, 150, 151
-- [ ] 邮箱格式：null, 空字符串, 无效格式, 有效格式
+> 除业务规则外，补充边界值和特殊场景测试。
+
+| 类别 | 场景 | 测试目的 |
+|------|------|----------|
+| 边界值 | 用户名长度 = 最大值 | 验证边界不越界 |
+| 边界值 | 年龄 = 17（刚好未成年） | 验证年龄边界判断 |
+| 边界值 | 年龄 = 18（刚好成年） | 验证年龄边界判断 |
+| 特殊场景 | 用户名含特殊字符 | 验证是否正确处理 |
+| 并发场景 | 同时注册相同用户名 | 验证并发安全（可选） |
 
 ### 1.5 测试用例数量预估
 
 - 总计：约 25 个测试用例
-- P0（必须）：15 个
-- P1（重要）：7 个
-- P2（可选）：3 个
+- P0（必须）：15 个 - 覆盖所有核心业务规则
+- P1（重要）：7 个 - 覆盖边界条件和次要规则
+- P2（可选）：3 个 - 并发、性能等场景
 
 ---
 
@@ -933,6 +1038,12 @@ void shouldSaveUserAndSendEmail_whenUserIsValid() {
 - [ ] 所有分支都被覆盖
 - [ ] null/空值/边界值已测试
 - [ ] 异常路径已测试
+
+#### 业务规则覆盖检查（关键）
+- [ ] 阶段 2 中提取的每个业务规则（BR-xx）都有对应测试用例
+- [ ] 测试用例明确标注了对应的业务规则编号
+- [ ] 隐含业务逻辑（如状态变更、条件触发）都有测试覆盖
+- [ ] 不仅测试"输入无效"场景，还测试"业务条件"场景
 
 #### 代码质量检查
 - [ ] 命名符合 `should_when` 规范
