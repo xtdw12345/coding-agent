@@ -740,7 +740,67 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     - [ ] `calculateTotal()`: 多重促销的折扣计算
     ```
 
-4.  **编写特征测试 (如需要)**:
+4.  **⛔️ 测试编写禁止规则 (关键)**:
+
+    ```
+    ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+    ┃  ⛔ 测试代码禁止行为 - 违反即失败                                      ┃
+    ┃                                                                       ┃
+    ┃  ❌ 禁止：将业务代码复制到测试文件中进行测试                           ┃
+    ┃  ❌ 禁止：在测试文件中重新实现被测试的逻辑                             ┃
+    ┃  ❌ 禁止：为了测试私有方法而绕过正常调用路径                           ┃
+    ┃  ❌ 禁止：测试文件中出现与生产代码相同的业务逻辑                       ┃
+    ┃                                                                       ┃
+    ┃  这些做法的危害：                                                     ┃
+    ┃  • 测试的是复制品，不是真正的代码                                     ┃
+    ┃  • 生产代码修改后，测试仍会通过（假阳性）                             ┃
+    ┃  • 复制的逻辑可能与原逻辑不一致                                       ┃
+    ┃  • 完全违背了测试的意义                                               ┃
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+    ```
+
+    **私有方法测试策略（正确做法）**:
+
+    | 策略 | 适用场景 | 示例 |
+    |------|----------|------|
+    | **通过公共 API 测试** | 首选方案，绝大多数情况 | 私有方法 `validateItems()` 通过测试 `processOrder()` 间接验证 |
+    | **提取为独立类** | 私有逻辑复杂且值得单独测试 | 将 `calculateDiscount()` 提取到 `DiscountCalculator` 类 |
+    | **Package-private** | Java/Kotlin，同包测试 | `void validateItems()` 而非 `private void validateItems()` |
+    | **@VisibleForTesting** | 明确标注仅供测试访问 | Guava 注解，表明可见性是为了测试 |
+
+    > ⚠️ **核心原则**：如果一个私有方法复杂到需要单独测试，
+    > 这本身就是一个代码异味——它可能应该被提取为独立的类。
+    > 重构的一部分工作就是将这类私有方法提取出来，使其可测试。
+
+    **示例：错误 vs 正确**
+
+    ```java
+    // ❌ 错误做法：在测试文件中复制业务逻辑
+    @Test
+    void testDiscountCalculation() {
+        // 复制了生产代码中的折扣计算逻辑
+        BigDecimal discount = BigDecimal.ZERO;
+        if (customer.isVip() && total.compareTo(THRESHOLD) > 0) {
+            discount = total.multiply(DISCOUNT_RATE);  // 这是复制的逻辑！
+        }
+        assertEquals(expectedDiscount, discount);  // 测试的是复制品
+    }
+
+    // ✅ 正确做法：通过公共 API 测试
+    @Test
+    void shouldApplyVipDiscount_whenCustomerIsVipAndOrderExceedsThreshold() {
+        // Arrange
+        Order order = createOrderWithVipCustomer(largeAmount);
+
+        // Act - 调用真正的生产代码
+        orderService.processOrder(order);
+
+        // Assert - 验证真正的行为
+        assertEquals(expectedDiscountedTotal, order.getFinalTotal());
+    }
+    ```
+
+6.  **编写特征测试 (如需要)**:
     重构前，添加捕获当前行为的测试：
     ```java
     /**
@@ -756,7 +816,7 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     }
     ```
 
-5.  **更新执行计划**:
+7.  **更新执行计划**:
     将测试任务添加到 `./refactor/{RefactorID}/plan.md`:
     ```markdown
     # 执行计划: {RefactorID}
@@ -778,7 +838,7 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     - [ ] CHECK-04: 未检测到行为变化
     ```
 
-6.  **终止点 (STOP)**:
+8.  **终止点 (STOP)**:
 
     **输出消息**："*测试覆盖分析完成。已识别缺口。所需测试已列入计划。*"
 
@@ -1538,6 +1598,8 @@ public record CustomerDTO(String id, String name, String email) {}
 - ❌ 自行"优化"设计而不回到阶段 2 修改策略
 - ❌ 假设 AI 生成的重构一定正确（必须运行测试验证）
 - ❌ 跳过特征测试直接重构遗留代码
+- ❌ **在测试文件中复制业务逻辑**（测试的是复制品，不是真正的代码）
+- ❌ **为测试私有方法而重新实现其逻辑**（应通过公共 API 测试或提取为独立类）
 
 ### Agent 主动执行清单
 
