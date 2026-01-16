@@ -821,6 +821,9 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     ```markdown
     # 执行计划: {RefactorID}
 
+    > 📋 本计划基于 `strategy.md` 生成，每个步骤包含设计摘要以便执行时快速回顾。
+    > 完整设计细节请参考 `strategy.md` 对应章节。
+
     ## 重构前：测试覆盖
     - [ ] TEST-01: 为 `processOrder()` 添加特征测试
     - [ ] TEST-02: 添加空购物车边界测试
@@ -828,8 +831,34 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     - [ ] TEST-04: 验证所有测试在重构前通过
 
     ## 重构步骤
-    - [ ] STEP-01: ...
-    - [ ] STEP-02: ...
+
+    ### STEP-01: [重构手法] - [目标描述]
+    - [ ] 执行状态
+
+    **设计摘要** (详见 strategy.md §4 STEP-01):
+    - **目标**: [从 strategy.md 复制]
+    - **涉及文件**: `OrderService.java`
+    - **关键约束**:
+      - 新方法必须是 private
+      - 异常类型和消息保持不变
+    - **影响的业务规则**: BR-01, BR-02
+    - **验证测试**: `shouldThrowException_whenCartIsEmpty`
+
+    ---
+
+    ### STEP-02: [重构手法] - [目标描述]
+    - [ ] 执行状态
+
+    **设计摘要** (详见 strategy.md §4 STEP-02):
+    - **目标**: [从 strategy.md 复制]
+    - **涉及文件**: `OrderService.java`, `Customer.java`
+    - **关键约束**:
+      - 折扣计算逻辑必须完全相同
+      - Customer.calculateDiscount 必须是 public
+    - **影响的业务规则**: BR-02
+    - **验证测试**: `shouldApplyDiscount_whenVipAndLargeOrder`
+
+    ---
 
     ## 重构后：验证
     - [ ] CHECK-01: 所有现有测试通过
@@ -837,6 +866,13 @@ Agent: 收到修改意见。正在更新 analysis.md 中的 BR-02...
     - [ ] CHECK-03: 覆盖率达到目标（≥80%）
     - [ ] CHECK-04: 未检测到行为变化
     ```
+
+    > ⚠️ **plan.md 设计摘要的作用**
+    >
+    > - 执行时无需频繁跳转到 strategy.md
+    > - 关键约束直接可见，减少遗漏风险
+    > - 业务规则和验证测试一目了然
+    > - 但完整的"重构前/后代码"仍需查看 strategy.md
 
 8.  **终止点 (STOP)**:
 
