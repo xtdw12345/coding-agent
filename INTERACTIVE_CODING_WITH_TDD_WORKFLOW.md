@@ -926,15 +926,15 @@ public ResponseEntity<String> validateAccess(User user) {
 **任务级别**：S / M / L
 **状态**：草稿 → 审核中 → 已批准 → 已实现
 
-## 1. 背景与范围
+## 1. 背景与范围 (Context & Scope)
 * **目标**：[要解决的问题简述]
 * **涉及文件**：[要修改/添加的文件列表]
 
-## 2. 现状分析
+## 2. 现状分析 (As-Is Analysis)
 * **当前逻辑**：[代码当前如何工作]
 * **局限性**：[为什么需要变更]
 
-## 3. 详细设计
+## 3. 详细设计 (Detailed Design)
 **必须为每个逻辑点分配唯一 ID（例如 LOGIC-01、API-02）以便代码注释引用。**
 
 * **核心架构**：[类图或文字描述]
@@ -945,7 +945,18 @@ public ResponseEntity<String> validateAccess(User user) {
     * `Class.method(args)` -> `Class.newMethod(args)`（显示具体签名）
 * **数据结构**：[数据库 Schema 或 DTO 变更]
 
-### 3.1 设计理由
+* **核心代码变更预览** (Critical Code Changes Preview) - M/L级必填:
+    展示关键逻辑的代码变更，便于在设计阶段预审实现方案。
+    * `[LOGIC-ID]` 文件路径:
+      ```语言
+      // 变更前 (如为新增则标注"新增")
+      原代码...
+
+      // 变更后
+      新代码...
+      ```
+
+### 3.1 设计理由 (Design Rationale)
 **对每个关键设计决策，说明选择理由：**
 
 | 设计决策 | 选择方案 | 备选方案 | 选择理由 |
@@ -959,22 +970,33 @@ public ResponseEntity<String> validateAccess(User user) {
 > | 认证机制 | JWT Token | Session | 无状态、支持分布式部署 |
 > | 缓存策略 | Redis | 本地缓存 | 支持多实例共享、持久化 |
 
-## 4. 测试策略（TDD 关键）
+## 4. 测试策略 (Test Strategy) - TDD 关键
 * **测试方法**：单元测试 / 集成测试 / 端到端测试
 * **Mock 策略**：需要 mock 哪些外部依赖
 * **测试数据**：所需的测试 fixtures
+* **覆盖率目标**：M/L 级任务 ≥80%
 
-## 5. 风险评估 - M/L 级必需
+## 5. 风险评估 (Risk Assessment) - M/L级必填
 * **影响范围**：[此变更可能影响的模块/功能]
-* **向后兼容性**：[API 变更是否会破坏现有调用者？]
+* **向后兼容性**：[API 变更是否会破坏现有调用者？如何处理？]
 * **回滚计划**：[如果出现问题如何回退]
 
-## 6. 实现检查清单
+## 6. 性能考量 (Performance Considerations) - 如适用
+* **热点路径**：[是否在高频调用路径上？]
+* **复杂度**：[时间/空间复杂度分析]
+* **资源消耗**：[内存、连接池等]
+
+## 7. 测试场景 (Test Scenarios) - 必须包含
+* **正常路径 (Happy Path)**：[输入 -> 预期输出]
+* **边界/异常 (Edge/Error Cases)**：[空值/超时/错误输入 -> 预期行为]
+
+## 8. 实现检查清单
 - [ ] 遵循 SOLID 原则
 - [ ] 复杂度受控（嵌套 <3，长度 <50）
-- [ ] 安全检查通过
+- [ ] 安全检查通过（见参考4）
 - [ ] 无硬编码敏感信息
 - [ ] 测试策略已定义
+- [ ] 测试场景已覆盖所有 LOGIC-ID
 ```
 
 ---
@@ -1112,7 +1134,66 @@ public ResponseEntity<String> validateAccess(User user) {
 
 * **库使用**：禁止使用配置文件中不存在的库
 
-### 3.5 测试特定标准
+### 3.5 异常处理 (Error Handling)
+
+* **优雅降级**: 严禁直接把堆栈信息 (`stack trace`) 抛给前端/用户。
+* **明确性**: 抛出业务异常时，必须包含清晰的错误 `message` 和错误码。
+* **禁止**: 禁止捕获 `Exception` 后什么都不做（Swallowing exceptions）。
+    * *Bad*: `catch (Exception e) { e.printStackTrace(); }`
+    * *Good*: `catch (JsonProcessingException e) { log.error("Parse error", e); throw new BusinessException(ErrorCode.PARSE_ERROR); }`
+
+### 3.6 并发与线程安全 (Concurrency & Thread Safety)
+
+* **共享状态识别**: 明确标识哪些数据会被多线程访问
+* **线程安全集合**: 多线程场景使用 `ConcurrentHashMap`, `CopyOnWriteArrayList` 等
+* **锁的使用**:
+    * 优先使用更细粒度的锁
+    * 避免在持有锁时调用外部方法（防止死锁）
+    * 考虑使用 `ReentrantLock` + `tryLock` 避免永久阻塞
+* **不可变优先**: 尽可能使用不可变对象避免同步问题
+
+### 3.7 语言特定规范
+
+#### Java/Kotlin
+* **命名**: 类名 `PascalCase`，方法 `camelCase`，常量 `UPPER_SNAKE_CASE`。
+* **Import**: 禁止 `import xxx.*` 通配符导入；禁止使用全路径类名如 `java.util.List`。
+* **OOP**: 优先使用接口 (`List` vs `ArrayList`)；Bean 使用构造器注入 (Constructor Injection)。
+* **安全性**: 使用 `Optional` 避免空指针；优先使用 `final` 保持不可变性。
+* **日志**: 使用 SLF4J (`log.info`)，禁止 `System.out`。
+* **测试**: JUnit 5 + Mockito / AssertJ；使用 `@BeforeEach` 初始化。
+
+#### JavaScript/TypeScript
+* **命名**: 变量/函数 `camelCase`，类/组件 `PascalCase`，常量 `UPPER_SNAKE_CASE`。
+* **类型安全**: TypeScript 项目中避免 `any`，优先使用明确类型或泛型。
+* **异步处理**: 优先使用 `async/await`，避免回调地狱。
+* **不可变**: 使用 `const`，对象修改使用展开运算符 `{ ...obj, newProp }`。
+* **测试**: Jest / Vitest + Testing Library；使用 `describe` / `it` 结构。
+
+#### Python
+* **命名**: 函数/变量 `snake_case`，类 `PascalCase`，常量 `UPPER_SNAKE_CASE`。
+* **类型提示**: 使用 type hints (`def func(x: int) -> str:`)。
+* **上下文管理**: 文件/连接使用 `with` 语句确保资源释放。
+* **测试**: pytest + pytest-mock；使用 fixtures 管理测试数据。
+
+#### Go
+* **命名**: 导出用 `PascalCase`，非导出用 `camelCase`。
+* **错误处理**: 显式检查 `error`，不要忽略返回的错误。
+* **并发**: 使用 channel 通信，避免共享内存。
+* **测试**: 标准库 `testing` + `testify`；表驱动测试。
+
+#### Rust
+* **命名**: 类型 `PascalCase`，函数/变量 `snake_case`，常量 `UPPER_SNAKE_CASE`。
+* **所有权**: 优先使用借用 (`&T`) 而非克隆，理解生命周期。
+* **错误处理**: 使用 `Result<T, E>` 和 `?` 操作符，避免 `unwrap()` 在生产代码中。
+* **测试**: `#[cfg(test)]` 模块 + `cargo test`。
+
+#### C#/.NET
+* **命名**: 类/方法 `PascalCase`，参数/局部变量 `camelCase`。
+* **异步**: 使用 `async/await`，方法名以 `Async` 后缀。
+* **可空引用**: 启用 nullable reference types，显式处理 null。
+* **测试**: xUnit / NUnit + Moq；使用 `[Fact]` / `[Theory]` 属性。
+
+### 3.8 测试特定标准
 
 * **AAA 模式**：所有测试使用 准备-执行-断言 结构
 * **单一断言焦点**：每个测试应验证一个行为
@@ -1122,9 +1203,89 @@ public ResponseEntity<String> validateAccess(User user) {
 
 ---
 
-## 参考 4：安全检查清单
+## 参考 4：安全检查清单 (Security Checklist)
 
-与原文档相同 - SQL 注入、XSS、输入验证等。
+在阶段 5 交付代码前，必须核对以下安全要点：
+
+### 4.1 输入验证与注入防护
+- [ ] **SQL 注入**: 使用参数化查询/PreparedStatement，禁止字符串拼接 SQL
+- [ ] **命令注入**: 避免直接执行用户输入，必要时使用白名单验证
+- [ ] **XSS 防护**: 对用户输入进行转义，使用安全的模板引擎
+- [ ] **路径遍历**: 验证文件路径，禁止 `../` 类攻击
+
+### 4.2 敏感信息保护
+- [ ] **无硬编码**: API密钥、密码、Token 等必须从环境变量/配置中心读取
+- [ ] **日志脱敏**: 禁止在日志中打印密码、Token、信用卡号等敏感信息
+- [ ] **传输安全**: 敏感数据传输使用 HTTPS/TLS
+
+### 4.3 认证与授权
+- [ ] **权限检查**: 访问资源前验证用户权限
+- [ ] **会话管理**: 使用安全的 Session/Token 机制
+- [ ] **密码存储**: 使用 bcrypt/scrypt 等安全哈希，禁止明文或 MD5
+
+### 4.4 其他
+- [ ] **依赖安全**: 检查引入的依赖是否有已知漏洞 (CVE)
+- [ ] **错误信息**: 生产环境不暴露详细错误堆栈给用户
+
+---
+
+## 参考 5：依赖管理指南 (Dependency Management)
+
+引入新依赖时必须考虑：
+
+### 5.1 版本选择
+* **优先稳定版**: 选择 GA/Release 版本，避免 SNAPSHOT/Beta/RC
+* **版本兼容**: 确保与现有依赖版本兼容（检查依赖树冲突）
+* **LTS 优先**: 对于关键依赖，优先选择长期支持版本
+
+### 5.2 评估清单
+- [ ] 该依赖是否活跃维护？（最近6个月内有更新）
+- [ ] 是否有已知安全漏洞？
+- [ ] 许可证是否允许商用？（MIT/Apache 2.0 通常安全，GPL 需谨慎）
+- [ ] 传递依赖是否会引入冲突？
+- [ ] 包体积是否可接受？（前端尤其重要）
+
+### 5.3 依赖声明示例
+
+```xml
+<!-- Maven -->
+<properties>
+    <commons-lang3.version>3.12.0</commons-lang3.version>
+</properties>
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-lang3</artifactId>
+    <version>${commons-lang3.version}</version>
+</dependency>
+```
+
+```kotlin
+// Gradle Kotlin DSL
+dependencies {
+    implementation("org.apache.commons:commons-lang3:3.12.0")
+}
+```
+
+```json
+// Node.js: 使用精确版本或兼容范围
+{
+  "dependencies": {
+    "lodash": "4.17.21",
+    "express": "^4.18.0"
+  }
+}
+```
+
+```toml
+# Rust Cargo.toml
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+```
+
+```python
+# Python requirements.txt / pyproject.toml
+requests>=2.28.0,<3.0.0
+```
 
 ---
 
