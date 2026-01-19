@@ -807,10 +807,35 @@ S级任务可跳过阶段2和阶段3的文件持久化，但仍需人工确认�
     * 考虑使用 `ReentrantLock` + `tryLock` 避免永久阻塞
 * **不可变优先**: 尽可能使用不可变对象避免同步问题
 
-### 2.6 语言特定规范
+### 2.6 Import 规范
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ⛔ Import 强制规范                                                      │
+│                                                                         │
+│  ✅ 正确做法：先 import，再使用类名                                      │
+│     import java.util.List;                                              │
+│     import java.util.ArrayList;                                         │
+│     List<String> list = new ArrayList<>();                              │
+│                                                                         │
+│  ❌ 禁止做法：直接使用全路径类名 (Fully Qualified Class Name)            │
+│     java.util.List<String> list = new java.util.ArrayList<>();          │
+│                                                                         │
+│  适用语言：Java, Kotlin, Python, TypeScript, C#, Go 等                  │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**规范细则**：
+* **强制 import**: 所有外部类/模块必须在文件顶部显式 import，禁止在代码中使用全路径名
+* **避免通配符**: 禁止 `import java.util.*`，必须明确列出每个类
+* **分组排序**: import 语句按标准库、第三方库、项目内部模块分组，组间空行分隔
+* **移除未使用**: 禁止保留未使用的 import 语句
+
+### 2.7 语言特定规范
 
 #### Java/Kotlin
 * **命名**: 类名 `PascalCase`，方法 `camelCase`，常量 `UPPER_SNAKE_CASE`。
+* **Import**: 禁止 `import xxx.*` 通配符导入；禁止使用全路径类名如 `java.util.List`。
 * **OOP**: 优先使用接口 (`List` vs `ArrayList`)；Bean 使用构造器注入 (Constructor Injection)。
 * **安全性**: 使用 `Optional` 避免空指针；优先使用 `final` 保持不可变性。
 * **日志**: 使用 SLF4J (`log.info`)，禁止 `System.out`。
