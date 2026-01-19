@@ -832,11 +832,114 @@ public ResponseEntity<String> validateAccess(User user) {
 }
 ```
 
-**⛔️ 禁止桩实现**：
-- ❌ 禁止：返回默认值的方法签名（`return null`、`return 0`、`return {}`）
-- ❌ 禁止：`TODO`/`FIXME`/`pass`/`NotImplementedError` 占位符
-- ❌ 禁止：用 `// 实现逻辑...` 注释代替实际代码
-- ✅ 要求：每个方法必须是完整的、可运行的实现
+**⛔️ 禁止伪实现协议 (No Fake Implementation Protocol)**：
+
+```
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ⛔ 伪实现检测 - Agent 最常犯的偷懒行为                                  ┃
+┃                                                                       ┃
+┃  以下模式全部视为"未完成实现"，必须重写：                               ┃
+┃                                                                       ┃
+┃  ❌ 桩返回值：                                                         ┃
+┃     return null / return 0 / return false / return {} / return []    ┃
+┃     return new XxxDTO()  // 空对象                                    ┃
+┃                                                                       ┃
+┃  ❌ 注释搪塞：                                                         ┃
+┃     // 这里简化处理，实际应该...                                       ┃
+┃     // 为了测试通过，返回基本字段                                      ┃
+┃     // TODO: 后续完善                                                 ┃
+┃     // 省略复杂逻辑...                                                ┃
+┃     /* 实际业务逻辑待实现 */                                          ┃
+┃                                                                       ┃
+┃  ❌ 硬编码测试数据：                                                   ┃
+┃     return "test@example.com"  // 应该从参数/数据库获取               ┃
+┃     return Arrays.asList("item1", "item2")  // 硬编码列表             ┃
+┃                                                                       ┃
+┃  ❌ 跳过核心逻辑：                                                     ┃
+┃     if (true) return defaultValue;  // 跳过条件判断                   ┃
+┃     // 验证逻辑省略                                                   ┃
+┃     // 错误处理省略                                                   ┃
+┃                                                                       ┃
+┃  ❌ 伪异常处理：                                                       ┃
+┃     catch (Exception e) { return null; }                              ┃
+┃     catch (Exception e) { /* ignore */ }                              ┃
+┃                                                                       ┃
+┃  ❌ 空循环/条件：                                                      ┃
+┃     for (item : list) { }  // 空循环体                                ┃
+┃     if (condition) { }     // 空条件体                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
+**完整实现检查清单（每个方法必须自检）**：
+
+| 检查项 | 问题 | 如果答案是"否" |
+|-------|------|---------------|
+| 业务逻辑完整 | 是否实现了 design.md 描述的所有逻辑分支？ | 补充缺失的逻辑 |
+| 数据来源真实 | 返回值是否来自真实的计算/查询，而非硬编码？ | 实现真实数据获取 |
+| 错误处理完整 | 是否处理了所有 design.md 中定义的异常情况？ | 补充错误处理 |
+| 无搪塞注释 | 代码中是否有"简化处理"/"省略"/"TODO"等注释？ | 删除注释，实现逻辑 |
+| 条件有意义 | 所有 if/switch 是否都有实际的条件判断？ | 实现真实条件 |
+| 循环有内容 | 所有循环体是否都有实际操作？ | 实现循环逻辑 |
+
+**示例对比**：
+
+```java
+// ❌ 伪实现 - 测试能通过但毫无价值
+public UserDTO getUserById(Long id) {
+    // 为了测试通过，返回基本字段
+    UserDTO dto = new UserDTO();
+    dto.setId(id);
+    dto.setName("test");  // 硬编码
+    return dto;
+}
+
+// ✅ 真实实现 - 实际的业务逻辑
+public UserDTO getUserById(Long id) {
+    // [LOGIC-01] Query user from database
+    User user = userRepository.findById(id)
+        .orElseThrow(() -> new UserNotFoundException("User not found: " + id));
+
+    // [LOGIC-02] Convert to DTO with all required fields
+    return UserDTO.builder()
+        .id(user.getId())
+        .name(user.getName())
+        .email(user.getEmail())
+        .status(user.getStatus())
+        .build();
+}
+```
+
+```javascript
+// ❌ 伪实现 - 注释搪塞
+async function validateOrder(order) {
+    // 简化处理，实际应该校验库存、价格等
+    return { valid: true };
+}
+
+// ✅ 真实实现 - 完整校验逻辑
+async function validateOrder(order) {
+    // [LOGIC-03] Validate order items exist and have sufficient stock
+    for (const item of order.items) {
+        const product = await productRepo.findById(item.productId);
+        if (!product) {
+            throw new ValidationError(`Product not found: ${item.productId}`);
+        }
+        if (product.stock < item.quantity) {
+            throw new ValidationError(`Insufficient stock for: ${product.name}`);
+        }
+    }
+
+    // [LOGIC-04] Validate total price matches
+    const calculatedTotal = order.items.reduce(
+        (sum, item) => sum + item.price * item.quantity, 0
+    );
+    if (Math.abs(calculatedTotal - order.total) > 0.01) {
+        throw new ValidationError('Order total mismatch');
+    }
+
+    return { valid: true, calculatedTotal };
+}
+```
 
 #### 5.10 验收检查
 
@@ -873,10 +976,14 @@ public ResponseEntity<String> validateAccess(User user) {
     - [ ] 所有测试通过
     - [ ] 没有跳过或待定的测试
     - [ ] 覆盖率阈值达标（M/L 级任务 ≥80%）
-3.  **代码完整性**：
-    - [ ] 所有方法都有完整的业务逻辑（无桩）
-    - [ ] 没有 TODO/FIXME 占位符
-    - [ ] 每个 LOGIC-ID 功能都已完整实现
+3.  **代码完整性（伪实现检测）**：
+    - [ ] 所有方法都有完整的业务逻辑（无桩返回值）
+    - [ ] 没有 TODO/FIXME/"简化处理"/"省略" 等搪塞注释
+    - [ ] 没有硬编码测试数据（如 return "test@example.com"）
+    - [ ] 没有空循环体、空条件体
+    - [ ] 没有吞掉异常返回 null 的伪错误处理
+    - [ ] 每个 LOGIC-ID 功能都已按 design.md 完整实现
+    - [ ] 数据来源真实（来自参数/数据库/计算，非硬编码）
 4.  **TDD 合规性**：
     - [ ] 每次生产代码变更都由失败的测试驱动
     - [ ] 没有代码是在没有相应测试的情况下编写的
@@ -1383,6 +1490,8 @@ requests>=2.28.0,<3.0.0
 - ❌ **批量测试**：在任何实现之前编写多个测试
 - ❌ **依赖记忆**：不重新读取 design.md 就编写下一个 LOGIC-ID 的代码
 - ❌ **自由发挥**：实现设计文档中未定义的功能
+- ❌ **注释搪塞**：用"简化处理"/"省略"/"TODO"等注释代替实际逻辑
+- ❌ **伪实现**：硬编码测试数据、空循环/条件、吞掉异常返回null
 
 ### 常见借口与现实 (Rationalization Prevention)
 
@@ -1400,6 +1509,10 @@ requests>=2.28.0,<3.0.0
 | "手动测试更快" | 手动不能证明边缘情况。每次改动都要重测。|
 | "现有代码没有测试" | 你在改进它。为现有代码添加测试。|
 | "这次不一样因为..." | 所有这些都意味着：删除代码，从 TDD 重新开始。|
+| "简化处理，后续完善" | 没有后续。现在就实现完整逻辑，否则视为未完成。|
+| "为了测试通过先返回硬编码" | 硬编码能通过测试 = 测试写得有问题。修复测试。|
+| "这里逻辑复杂，先跳过" | design.md 已定义逻辑。按设计实现，不能跳过。|
+| "细节可以后面优化" | 核心逻辑不是"细节"。伪实现 = 未完成。|
 
 ### 设计锚点注释格式
 
