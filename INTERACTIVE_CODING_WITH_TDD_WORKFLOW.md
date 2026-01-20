@@ -324,12 +324,13 @@ S 级任务可以跳过阶段 2 和 3 的文件持久化，但仍需要人工确
 
 ### 阶段 3：测试规格（TDD 核心阶段）
 
-**这是 TDD 中最关键的阶段。所有测试用例必须在任何实现计划之前完整规定。**
+**这是 TDD 中最关键的阶段。所有测试用例必须在任何实现计划之前完整规定，且必须包含可直接执行的测试代码。**
 
 1.  **测试用例设计**：基于已批准的设计文档，创建全面的测试规格：
     * 将每个 `LOGIC-ID` 映射到一个或多个测试用例
     * 包括正向（正常路径）和负向（边缘/错误）用例
     * 为每个用例定义清晰的输入 → 预期输出
+    * **必须编写具体的测试代码**，而非仅描述测试意图
 
 2.  **测试规格文档**：创建 `./specs/{TaskID}/tests.md`：
 
@@ -339,40 +340,81 @@ S 级任务可以跳过阶段 2 和 3 的文件持久化，但仍需要人工确
     ## 测试环境
     - 框架：[Jest/PyTest/JUnit/等]
     - 测试工具：[Mock 库、fixtures 等]
+    - 测试文件路径：[tests/xxx.test.ts 或 src/test/xxx/XxxTest.java 等]
 
     ## 测试用例
 
     ### TC-01：[测试名称]（映射到 LOGIC-01）
     - **类型**：单元测试 / 集成测试
-    - **前置条件**：[所需设置]
-    - **输入**：[具体输入值]
-    - **预期输出**：[精确的预期结果]
-    - **断言**：
-      - [ ] 断言条件 1
-      - [ ] 断言条件 2
+    - **描述**：[此测试验证什么行为]
+
+    **测试代码**：
+    ```javascript
+    // [TC-01] LOGIC-01 测试：用户状态验证 - 正常路径
+    describe('UserService', () => {
+      it('should return 403 for inactive users', () => {
+        // Arrange
+        const user = { id: 1, status: 'inactive' };
+        const userService = new UserService();
+
+        // Act
+        const result = userService.validateAccess(user);
+
+        // Assert
+        expect(result.statusCode).toBe(403);
+        expect(result.message).toContain('inactive');
+      });
+    });
+    ```
 
     ### TC-02：[测试名称]（映射到 LOGIC-01，边缘用例）
     - **类型**：单元测试
-    - **前置条件**：[所需设置]
-    - **输入**：[边缘用例输入 - null/空/边界值]
-    - **预期输出**：[预期的错误/行为]
-    - **断言**：
-      - [ ] 断言错误类型
-      - [ ] 断言错误消息
+    - **描述**：[此测试覆盖什么边缘用例]
 
-    ...（继续为所有 LOGIC-ID 编写）
+    **测试代码**：
+    ```javascript
+    // [TC-02] LOGIC-01 测试：用户状态验证 - 空用户
+    describe('UserService', () => {
+      it('should throw error when user is null', () => {
+        // Arrange
+        const userService = new UserService();
+
+        // Act & Assert
+        expect(() => userService.validateAccess(null))
+          .toThrow('User cannot be null');
+      });
+    });
+    ```
+
+    ...（继续为所有 LOGIC-ID 编写完整测试代码）
+
+    ## 覆盖矩阵
+
+    | LOGIC-ID | 正常路径 | 边缘用例 | 错误处理 |
+    |----------|----------|----------|----------|
+    | LOGIC-01 | TC-01    | TC-02    | TC-03    |
+    | LOGIC-02 | TC-04    | TC-05    | TC-06    |
 
     ## 覆盖要求
     - [ ] 所有 LOGIC-ID 至少有一个正常路径测试
     - [ ] 所有 LOGIC-ID 至少有一个边缘用例测试
     - [ ] 错误处理路径已覆盖
     - [ ] 边界条件已测试
+    - [ ] **所有测试用例都有可执行的代码**
 
     ## 测试执行顺序
     1. TC-01、TC-02（LOGIC-01 测试）
     2. TC-03、TC-04（LOGIC-02 测试）
     ...
     ```
+
+3.  **测试代码要求（关键）**：
+    * ✅ 每个 TC 必须包含完整的、可直接复制到测试文件执行的代码
+    * ✅ 测试代码必须遵循 AAA 模式（Arrange-Act-Assert）
+    * ✅ 必须包含具体的测试数据，而非占位符
+    * ✅ Mock/Stub 的设置必须明确写出
+    * ❌ 禁止只写描述不写代码
+    * ❌ 禁止用伪代码或注释代替实际测试代码
 
 3.  **测试有效性约束（关键）**：
     * ❌ **禁止空测试**：测试必须包含实际断言，而不仅仅是方法调用
@@ -1173,6 +1215,8 @@ async function validateOrder(order) {
 
 **文件路径**：`./specs/{TaskID}/tests.md`
 
+**关键要求**：tests.md 必须包含可直接执行的测试代码，而非仅描述测试意图。
+
 ```markdown
 # 测试规格：{TaskID}
 
@@ -1180,44 +1224,121 @@ async function validateOrder(order) {
 - **框架**：[Jest/PyTest/JUnit/Go testing/等]
 - **Mock 库**：[Mockito/unittest.mock/Jest mocks/等]
 - **测试工具**：[现有的 fixtures、helpers]
+- **测试文件路径**：[tests/xxx.test.ts 或 src/test/xxx/XxxTest.java 等]
 
 ## 测试用例
 
-### TC-01：[描述性测试名称]
+### TC-01：用户状态验证 - 非活跃用户返回403
 - **映射到**：LOGIC-01
 - **类型**：单元测试
-- **描述**：[此测试验证什么]
-- **前置条件**：
-  - [设置步骤 1]
-  - [设置步骤 2]
-- **输入**：
-  ```json
-  { "userId": 1, "status": "inactive" }
-  ```
-- **预期输出**：
-  ```json
-  { "statusCode": 403, "message": "User inactive" }
-  ```
-- **断言**：
-  - [ ] 响应状态码等于 403
-  - [ ] 响应消息包含 "inactive"
+- **描述**：验证当用户状态为 inactive 时，validateAccess 返回 403
 
-### TC-02：[边缘用例测试名称]
+**测试代码**：
+```typescript
+// [TC-01] LOGIC-01 测试：用户状态验证 - 正常路径
+describe('UserService', () => {
+  let userService: UserService;
+
+  beforeEach(() => {
+    userService = new UserService();
+  });
+
+  it('should return 403 for inactive users', () => {
+    // Arrange
+    const user = { id: 1, status: 'inactive' };
+
+    // Act
+    const result = userService.validateAccess(user);
+
+    // Assert
+    expect(result.statusCode).toBe(403);
+    expect(result.message).toContain('inactive');
+  });
+});
+```
+
+### TC-02：用户状态验证 - 空用户抛出异常
 - **映射到**：LOGIC-01（边缘用例）
 - **类型**：单元测试
-- **描述**：[此测试覆盖什么边缘用例]
-- **输入**：null / 空 / 边界值
-- **预期**：[错误类型和消息]
-- **断言**：
-  - [ ] 抛出特定异常类型
-  - [ ] 错误消息具有描述性
+- **描述**：验证当用户为 null 时抛出明确的错误
+
+**测试代码**：
+```typescript
+// [TC-02] LOGIC-01 测试：用户状态验证 - 边缘用例
+describe('UserService', () => {
+  let userService: UserService;
+
+  beforeEach(() => {
+    userService = new UserService();
+  });
+
+  it('should throw error when user is null', () => {
+    // Arrange & Act & Assert
+    expect(() => userService.validateAccess(null))
+      .toThrow('User cannot be null');
+  });
+
+  it('should throw error when user is undefined', () => {
+    // Arrange & Act & Assert
+    expect(() => userService.validateAccess(undefined))
+      .toThrow('User cannot be null');
+  });
+});
+```
+
+### TC-03：重试机制 - 失败后重试3次
+- **映射到**：LOGIC-02
+- **类型**：单元测试
+- **描述**：验证 API 调用失败时按指数退避重试3次
+
+**测试代码**：
+```typescript
+// [TC-03] LOGIC-02 测试：重试机制
+describe('ApiClient', () => {
+  let apiClient: ApiClient;
+  let mockHttpClient: jest.Mocked<HttpClient>;
+
+  beforeEach(() => {
+    mockHttpClient = {
+      get: jest.fn(),
+    } as any;
+    apiClient = new ApiClient(mockHttpClient);
+  });
+
+  it('should retry 3 times with exponential backoff on failure', async () => {
+    // Arrange
+    mockHttpClient.get
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce({ data: 'success' });
+
+    // Act
+    const result = await apiClient.fetchWithRetry('/api/data');
+
+    // Assert
+    expect(mockHttpClient.get).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+    expect(result.data).toBe('success');
+  });
+
+  it('should throw after 3 failed retries', async () => {
+    // Arrange
+    mockHttpClient.get.mockRejectedValue(new Error('Network error'));
+
+    // Act & Assert
+    await expect(apiClient.fetchWithRetry('/api/data'))
+      .rejects.toThrow('Max retries exceeded');
+    expect(mockHttpClient.get).toHaveBeenCalledTimes(4);
+  });
+});
+```
 
 ## 覆盖矩阵
 
 | LOGIC-ID | 正常路径 | 边缘用例 | 错误处理 |
 |----------|----------|----------|----------|
-| LOGIC-01 | TC-01    | TC-02    | TC-03    |
-| LOGIC-02 | TC-04    | TC-05    | TC-06    |
+| LOGIC-01 | TC-01    | TC-02    | -        |
+| LOGIC-02 | TC-03    | -        | TC-03    |
 
 ## 测试执行检查清单
 - [ ] 所有 LOGIC-ID 有正常路径覆盖
@@ -1225,6 +1346,105 @@ async function validateOrder(order) {
 - [ ] 错误处理路径已测试
 - [ ] 没有空测试或同义反复测试
 - [ ] 所有测试能够真正失败
+- [ ] **所有测试用例都包含完整的可执行代码**
+- [ ] **测试代码遵循 AAA 模式（Arrange-Act-Assert）**
+- [ ] **Mock/Stub 设置已明确写出**
+```
+
+### 不同语言的测试代码示例
+
+#### Python (pytest)
+```python
+# [TC-01] LOGIC-01 测试：用户状态验证
+import pytest
+from services.user_service import UserService
+
+class TestUserService:
+    def setup_method(self):
+        self.user_service = UserService()
+
+    def test_should_return_403_for_inactive_users(self):
+        # Arrange
+        user = {"id": 1, "status": "inactive"}
+
+        # Act
+        result = self.user_service.validate_access(user)
+
+        # Assert
+        assert result["status_code"] == 403
+        assert "inactive" in result["message"]
+
+    def test_should_raise_error_when_user_is_none(self):
+        # Arrange & Act & Assert
+        with pytest.raises(ValueError, match="User cannot be None"):
+            self.user_service.validate_access(None)
+```
+
+#### Java (JUnit 5 + Mockito)
+```java
+// [TC-01] LOGIC-01 测试：用户状态验证
+@ExtendWith(MockitoExtension.class)
+class UserServiceTest {
+    private UserService userService;
+
+    @BeforeEach
+    void setUp() {
+        userService = new UserService();
+    }
+
+    @Test
+    void shouldReturn403ForInactiveUsers() {
+        // Arrange
+        User user = new User(1L, "inactive");
+
+        // Act
+        Response result = userService.validateAccess(user);
+
+        // Assert
+        assertThat(result.getStatusCode()).isEqualTo(403);
+        assertThat(result.getMessage()).contains("inactive");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenUserIsNull() {
+        // Arrange & Act & Assert
+        assertThatThrownBy(() -> userService.validateAccess(null))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("User cannot be null");
+    }
+}
+```
+
+#### Go
+```go
+// [TC-01] LOGIC-01 测试：用户状态验证
+func TestUserService_ValidateAccess(t *testing.T) {
+    t.Run("should return 403 for inactive users", func(t *testing.T) {
+        // Arrange
+        svc := NewUserService()
+        user := &User{ID: 1, Status: "inactive"}
+
+        // Act
+        result, err := svc.ValidateAccess(user)
+
+        // Assert
+        require.NoError(t, err)
+        assert.Equal(t, 403, result.StatusCode)
+        assert.Contains(t, result.Message, "inactive")
+    })
+
+    t.Run("should return error when user is nil", func(t *testing.T) {
+        // Arrange
+        svc := NewUserService()
+
+        // Act
+        _, err := svc.ValidateAccess(nil)
+
+        // Assert
+        require.Error(t, err)
+        assert.Contains(t, err.Error(), "user cannot be nil")
+    })
+}
 ```
 
 ---
@@ -1511,6 +1731,7 @@ requests>=2.28.0,<3.0.0
 - ❌ **自由发挥**：实现设计文档中未定义的功能
 - ❌ **注释搪塞**：用"简化处理"/"省略"/"TODO"等注释代替实际逻辑
 - ❌ **伪实现**：硬编码测试数据、空循环/条件、吞掉异常返回null
+- ❌ **测试规格无代码**：tests.md 中只写描述不写可执行的测试代码
 
 ### 常见借口与现实 (Rationalization Prevention)
 
